@@ -1,49 +1,51 @@
 #include "threadpool.hpp"
+#include <chrono>
+#include <ctime>
+#include <iostream>
 
-int64_t GetCurrentStamp64()
+unsigned __int64 get_current_stamp()
 {
-    boost::posix_time::ptime epoch(boost::gregorian::date(1970, boost::gregorian::Jan, 1));
-    boost::posix_time::time_duration time_from_epoch =
-    boost::posix_time::microsec_clock::universal_time() - epoch;
-    return time_from_epoch.total_milliseconds();
+    return std::time(nullptr);
 }
 
-boost::mutex mutex_;
+std::mutex mutex__;
 
-void test(int arg1)
+void test(const unsigned __int64& i)
 {
-    boost::mutex::scoped_lock lock(mutex_);
-    printf("Threading : %d %d \n",boost::this_thread::get_id(),arg1);
+    std::unique_lock< std::mutex > lock(mutex__);
+
+    std::cout << "num : " << i << " thread_id : " << std::this_thread::get_id() << std::endl;
 }
 
 int main(int,char**)
 {
 
-    threadpool::pool p;
+    BrinK::threadpool::pool p;
 
-    bool b=p.start();
+    p.start();
 
     for (int j=0;j<1;j++)
     {
-        boost::this_thread::sleep(boost::posix_time::millisec(500));
-        int64_t dw=GetCurrentStamp64();
-        for (int i=0;i<10000;i++)
+        int64_t dw = get_current_stamp();
+        for (int i=0;i<1000;i++)
         {
-            p.post(std::bind(test,i));
+            p.post(std::bind(&test,i));
         }
         p.stop();
-        b=p.waitall();
-        p.dispatch(std::bind(test,999));
-        boost::this_thread::sleep(boost::posix_time::millisec(1000));
+        p.waitall();
+        std::cout << "Dispatch new message" << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        p.dispatch(std::bind(&test,99999999));
         p.start();
+        p.waitall();
 
-        b=p.waitall();
-        printf("Post %d completed : %d \n",j,GetCurrentStamp64()-dw);
+        std::cout << "Post " << j << " completed " << get_current_stamp() - dw << std::endl;
 
     }
-    int64_t dw=GetCurrentStamp64();
+    int64_t dw = get_current_stamp();
     p.stop();
-    printf("Stop : %d \n",GetCurrentStamp64()-dw);
+
+    std::cout << "Stop " << get_current_stamp() - dw << std::endl;
 
     system("pause");
 
