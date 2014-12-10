@@ -33,6 +33,7 @@ int main(int,char**)
         }
         p.stop();
         b=p.waitall();
+        p.dispatch(std::bind(test,999));
         boost::this_thread::sleep(boost::posix_time::millisec(1000));
         p.start();
 

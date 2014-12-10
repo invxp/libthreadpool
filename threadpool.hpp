@@ -16,6 +16,7 @@ namespace threadpool
 
     public:
         void post( const task_t& f );
+        void dispatch ( const task_t& f );
         bool waitall();
         void stop();
         bool start( const unsigned int& pool_size = boost::thread::hardware_concurrency() );
@@ -23,9 +24,10 @@ namespace threadpool
     private:
         void    pool_func_();
         void    awake_thread_();
-        bool    get_task_(task_t& t);
+        bool    get_task_( task_t& t );
         void    clear_();
-
+        void    run_( const unsigned int & pool_size );
+       
     private:
 
         std::list< task_t >                                     tasks_;
@@ -43,9 +45,7 @@ namespace threadpool
 
     pool::pool( const unsigned int& pool_size ):stop_flag_(false)
     {
-        stop_flag_=false;
-        for (unsigned int i=0;i<pool_size;i++)
-            threads_.emplace_back(new boost::thread(std::bind(&pool::pool_func_,this)));
+        run_(pool_size);
     }
 
     pool::~pool()
@@ -60,10 +60,18 @@ namespace threadpool
         lock.unlock();
 
         awake_thread_();
-
     }
 
-    bool pool::get_task_(task_t& t)
+    void pool::dispatch( const task_t& f )
+    {
+        boost::mutex::scoped_lock lock(tasks_mutex_);
+        tasks_.push_front(f);
+        lock.unlock();
+
+        awake_thread_();
+    }
+
+    bool pool::get_task_( task_t& t )
     {
         boost::mutex::scoped_lock lock(tasks_mutex_);
 
@@ -107,14 +115,14 @@ namespace threadpool
 
     void pool::awake_thread_()
     {
-        condition_.notify_all();
+        condition_.notify_one();
     }
 
     void pool::stop()
     {
         stop_flag_=true;
 
-        awake_thread_();
+        condition_.notify_all();
 
         std::for_each(threads_.begin(), threads_.end(),[this](thread_ptr_t& thread){ thread->join(); });
 
@@ -134,11 +142,17 @@ namespace threadpool
         if (!stop_flag_)
             return false;
 
-        stop_flag_=false;
-        for (unsigned int i=0;i<pool_size;i++)
-            threads_.emplace_back(new boost::thread(std::bind(&pool::pool_func_,this)));
+        run_(pool_size);
 
         return true;
     }
+
+    void pool::run_( const unsigned int & pool_size )
+    {
+        stop_flag_=false;
+        for (unsigned int i=0;i<pool_size;i++)
+            threads_.emplace_back(new boost::thread(std::bind(&pool::pool_func_,this)));
+    }
+
 
 }
