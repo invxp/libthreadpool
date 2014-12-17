@@ -159,7 +159,7 @@ namespace BrinK
         {
             stop_flag_ = false;
             for (unsigned int i = 0; i < pool_size; i++)
-                threads_.emplace_back(new std::thread(std::bind(&pool::pool_func_, this)));
+            threads_.emplace_back(std::make_shared<std::thread>(std::bind(&threadpool::pool::pool_func_, this)));
         }
 
 
