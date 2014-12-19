@@ -20,7 +20,7 @@ void test(const unsigned __int64& i)
 int main(int,char**)
 {
 
-    BrinK::threadpool::pool p;
+    InvXp::threadpool::pool p;
 
     p.start();
 

@@ -1,5 +1,5 @@
-#ifndef BRINK_THREAD_POOL_H
-#define BRINK_THREAD_POOL_H
+#ifndef INVXP_THREAD_POOL_H
+#define INVXP_THREAD_POOL_H
 
 #include <list>
 #include <thread>
@@ -8,7 +8,7 @@
 #include <condition_variable>
 #include <algorithm>
 
-namespace BrinK
+namespace InvXp
 {
     namespace threadpool
     {
