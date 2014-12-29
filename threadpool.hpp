@@ -47,11 +47,8 @@ namespace BrinK
 
             bool wait()
             {
-                {
-                    std::unique_lock < std::mutex > lock_stop(stop_mutex_);
-                    if (stop_flag_)
-                        return false;
-                }
+                if (stopped_())
+                    return false;
 
                 std::unique_lock < std::mutex > lock_task(tasks_mutex_);
                 std::unique_lock < std::mutex > lock_wait(wait_all_mutex_);
@@ -64,11 +61,8 @@ namespace BrinK
 
             bool wait_one()
             {
-                {
-                    std::unique_lock < std::mutex > lock_stop(stop_mutex_);
-                    if (stop_flag_)
-                        return false;
-                }
+                if (stopped_())
+                    return false;
 
                 std::unique_lock < std::mutex > lock_task(tasks_mutex_);
                 std::unique_lock < std::mutex > lock_wait(wait_one_mutex_);
@@ -90,23 +84,17 @@ namespace BrinK
                     return;
 
                 stop_flag_ = true;
-
                 lock_stop.unlock();
 
-                tasks_condition_.notify_all();
-
+                awake_thread_(true);
                 wait_all_condition_.notify_all();
-
                 wait_one_condition_.notify_all();
 
                 lock_task.unlock();
-
                 lock_all.unlock();
-
                 lock_one.unlock();
 
                 std::for_each(threads_.begin(), threads_.end(), [this](thread_ptr_t& thread){ thread->join(); });
-
                 threads_.clear();
             }
 
@@ -175,6 +163,12 @@ namespace BrinK
                 stop_flag_ = false;
                 for (unsigned int i = 0; i < pool_size; i++)
                     threads_.emplace_back(std::make_shared<std::thread>(std::bind(&BrinK::pool::thread::pool_func_, this)));
+            }
+
+            bool stopped_()
+            {
+                std::unique_lock < std::mutex > lock_stop(stop_mutex_);
+                return stop_flag_ ? true : false;
             }
         private:
             std::list < task_t >                                    tasks_;
