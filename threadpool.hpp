@@ -23,6 +23,7 @@ namespace BrinK
             thread()
             {
                 stop_flag_ = true;
+                can_start_ = true;
             }
             virtual ~thread()
             {
@@ -75,6 +76,7 @@ namespace BrinK
 
             void stop()
             {
+                std::unique_lock < std::mutex > lock_start(can_start_mutex_);
                 std::unique_lock < std::mutex > lock_stop(stop_mutex_);
                 std::unique_lock < std::mutex > lock_task(tasks_mutex_);
                 std::unique_lock < std::mutex > lock_all(wait_all_mutex_);
@@ -84,7 +86,6 @@ namespace BrinK
                     return;
 
                 stop_flag_ = true;
-                lock_stop.unlock();
 
                 awake_thread_(true);
                 wait_all_condition_.notify_all();
@@ -93,17 +94,25 @@ namespace BrinK
                 lock_task.unlock();
                 lock_all.unlock();
                 lock_one.unlock();
+                lock_stop.unlock();
 
                 std::for_each(threads_.begin(), threads_.end(), [this](thread_ptr_t& thread){ thread->join(); });
                 threads_.clear();
+                can_start_ = true;
             }
 
             bool start(const unsigned int& pool_size = std::thread::hardware_concurrency())
             {
-                std::unique_lock < std::mutex > lock(stop_mutex_);
+                std::unique_lock < std::mutex > lock_start(can_start_mutex_);
 
-                if (!stop_flag_)
+                if (!can_start_)
                     return false;
+
+                can_start_ = false;
+
+                std::unique_lock < std::mutex > lock_stop(stop_mutex_);
+
+                stop_flag_ = false;
 
                 run_(pool_size);
 
@@ -126,12 +135,13 @@ namespace BrinK
             {
                 do
                 {
+                    std::unique_lock < std::mutex > lock_stop(stop_mutex_);
+                    if (stop_flag_)
+                        break;
+
                     std::unique_lock < std::mutex > lock_task(tasks_mutex_);
                     std::unique_lock < std::mutex > lock_all(wait_all_mutex_);
                     std::unique_lock < std::mutex > lock_one(wait_one_mutex_);
-
-                    if (stop_flag_)
-                        break;
 
                     if (tasks_.empty())
                     {
@@ -139,6 +149,7 @@ namespace BrinK
                         lock_all.unlock();
                         wait_one_condition_.notify_all();
                         lock_one.unlock();
+                        lock_stop.unlock();
                         tasks_condition_.wait(lock_task);
                         continue;
                     }
@@ -160,7 +171,6 @@ namespace BrinK
 
             void run_(const unsigned int & pool_size)
             {
-                stop_flag_ = false;
                 for (unsigned int i = 0; i < pool_size; i++)
                     threads_.emplace_back(std::make_shared<std::thread>(std::bind(&BrinK::pool::thread::pool_func_, this)));
             }
@@ -177,8 +187,11 @@ namespace BrinK
 
             std::list < thread_ptr_t >                              threads_;
 
-            volatile std::atomic_bool                               stop_flag_;
             std::mutex                                              stop_mutex_;
+            volatile std::atomic_bool                               stop_flag_;
+
+            std::mutex                                              can_start_mutex_;
+            volatile std::atomic_bool                               can_start_;
 
             std::mutex                                              wait_all_mutex_;
             std::condition_variable                                 wait_all_condition_;
