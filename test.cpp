@@ -13,6 +13,18 @@ volatile std::atomic_bool       exit_b__;
 volatile std::atomic_bool       exit_t__;
 std::atomic_uint64_t            count__;
 
+void sleep(const unsigned long& milliseconds)
+{
+    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
+}
+
+unsigned int random(const unsigned int& left, const unsigned int& right)
+{
+    std::mt19937 rng((unsigned int)std::time(nullptr));
+    std::uniform_int_distribution<unsigned int> num(left, right);
+    return num(rng);
+}
+
 unsigned __int64 get_current_stamp()
 {
     return std::time(nullptr);
@@ -32,33 +44,34 @@ void dispatch()
 
 void random_test_broadcast()
 {
-    std::mt19937 engine(std::time(nullptr));
-    std::uniform_int_distribution<int> num(100, 200);
-
     static int send_count = 0;
 
     while (!exit_b__)
     {
-        int rand = num(engine);
         tp__.post(std::bind(&test, ++count__));
-        std::this_thread::sleep_for(std::chrono::milliseconds(rand));
+        sleep(1);
     }
 
 }
 
 void random_test_start_stop()
 {
-    std::mt19937 rng(std::time(nullptr));
-    std::uniform_int<> ui(100, 200);
-
     while (!exit_t__)
     {
-        int rand = ui(rng);
         tp__.start();
-        std::this_thread::sleep_for(std::chrono::milliseconds(rand));
+        sleep(random(100,200));
         tp__.stop();
-        tp__.cancel();
     }
+}
+
+void random_test_wait()
+{
+    tp__.wait();
+}
+
+void random_test_wait_one()
+{
+    tp__.wait_one();
 }
 
 int main(int, char**)
@@ -71,7 +84,7 @@ int main(int, char**)
 
         if (cmd == "q")
         {
-            std::cout << "stop pool" << std::endl;
+            std::cout << "Stop pool" << std::endl;
 
             std::async([]
             {
@@ -81,34 +94,34 @@ int main(int, char**)
 
         else if (cmd == "s")
         {
-            std::cout << "start 1 pool" << std::endl;
+            std::cout << "Start pool" << std::endl;
 
             std::async([]
             {
-                tp__.start(1);
+                tp__.start();
             });
 
         }
         else if (cmd == "p")
         {
-            std::cout << "post 1" << std::endl;
+            std::cout << "Post 1" << std::endl;
 
             std::async([]
             {
-                tp__.post([]{});
+                tp__.post([]{ std::cout << "Post 1 task" << std::endl;  });
             });
 
         }
         else if (cmd == "t")
         {
-            std::cout << "test start/stop" << std::endl;
+            std::cout << "Test start/stop" << std::endl;
             exit_t__ = false;
             std::async([]{random_test_start_stop(); });
         }
 
         else if (cmd == "w")
         {
-            std::cout << "start post thread" << std::endl;
+            std::cout << "Start post thread" << std::endl;
             exit_b__ = false;
             std::async([]
             {
@@ -117,7 +130,7 @@ int main(int, char**)
         }
         else if (cmd == "b")
         {
-            std::cout << "broadcast msg" << std::endl;
+            std::cout << "Dispatch msg" << std::endl;
 
             std::async([]
             {
@@ -127,37 +140,27 @@ int main(int, char**)
         }
         else if (cmd == "a")
         {
-            std::cout << "wait" << std::endl;
-
             std::async([]
             {
-                if (tp__.wait())
-                    std::cout << "wait_all_ok!!!" << std::endl;
-                else
-                    std::cout << "no_wait!!!" << std::endl;
+                random_test_wait();
             });
         }
         else if (cmd == "o")
         {
-            std::cout << "wait_one" << std::endl;
-
             std::async([]
             {
-                if (tp__.wait_one())
-                    std::cout << "wait_one_ok!!!" << std::endl;
-                else
-                    std::cout << "no_wait!!!" << std::endl;
+                random_test_wait_one();
             });
         }
         else if (cmd == "qb")
         {
-            std::cout << "stop broadcast" << std::endl;
+            std::cout << "Stop broadcast" << std::endl;
 
             exit_b__ = true;
         }
         else if (cmd == "qt")
         {
-            std::cout << "stop stat/stop" << std::endl;
+            std::cout << "Stop stat/stop" << std::endl;
 
             exit_t__ = true;
         }
