@@ -15,7 +15,7 @@ namespace BrinK
     {
         typedef std::function < void() >                 task_t;
 
-        typedef std::shared_ptr < std::thread >          thread_ptr_t;
+        typedef std::unique_ptr < std::thread >          thread_ptr_t;
 
         class thread
         {
@@ -58,7 +58,7 @@ namespace BrinK
 
             bool start(const unsigned int& pool_size = std::thread::hardware_concurrency())
             {
-                std::unique_lock < std::mutex > lock(mutex_);
+                std::lock_guard < std::mutex > lock(mutex_);
 
                 if (started_)
                     return false;
@@ -72,7 +72,7 @@ namespace BrinK
 
             bool stop()
             {
-                std::unique_lock < std::mutex > lock(mutex_);
+                std::lock_guard < std::mutex > lock(mutex_);
 
                 std::unique_lock < std::mutex > lock_task(tasks_mutex_);
 
@@ -86,11 +86,9 @@ namespace BrinK
                 remove_threads_();
 
                 std::unique_lock < std::mutex > lock_all(wait_all_mutex_);
-
-                std::unique_lock < std::mutex > lock_one(wait_one_mutex_);
-
                 awake_condition(lock_all, wait_all_condition_);
 
+                std::unique_lock < std::mutex > lock_one(wait_one_mutex_);
                 awake_condition(lock_one, wait_one_condition_);
 
                 stop_ = false;
@@ -156,12 +154,12 @@ namespace BrinK
             void create_threads_(const unsigned int & pool_size)
             {
                 for (unsigned int i = 0; i < pool_size; i++)
-                    threads_.emplace_back(std::make_shared<std::thread>(std::bind(&BrinK::pool::thread::pool_func_, this)));
+                    threads_.emplace_back(std::make_unique < std::thread >(std::bind(&BrinK::pool::thread::pool_func_, this)));
             }
 
             void remove_threads_()
             {
-                std::for_each(threads_.begin(), threads_.end(), [](thread_ptr_t& td)
+                std::for_each(threads_.begin(), threads_.end(), [](const thread_ptr_t& td)
                 { 
                     td->join();
                 });
@@ -170,7 +168,7 @@ namespace BrinK
 
             bool stopped_()
             {
-                std::unique_lock < std::mutex > lock(mutex_);
+                std::lock_guard < std::mutex > lock(mutex_);
                 return stop_ ? true : false;
             }
 
@@ -193,13 +191,12 @@ namespace BrinK
                 std::unique_lock < std::mutex > lock_wait(mutex);
                 lock_task.unlock();
                 cond.wait(lock_wait);
-
                 return true;
             }
         private:
             std::list < task_t >                                    tasks_;
-            std::mutex                                              tasks_mutex_;
             std::condition_variable                                 tasks_condition_;
+            std::mutex                                              tasks_mutex_;
 
             std::list < thread_ptr_t >                              threads_;
 
