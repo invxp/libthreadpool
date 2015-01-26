@@ -17,7 +17,7 @@ namespace BrinK
 
         typedef std::unique_ptr < std::thread >          thread_ptr_t;
 
-        class thread
+        class thread final
         {
         public:
             thread()
@@ -25,7 +25,7 @@ namespace BrinK
                 stop_ = false;
                 started_ = false;
             }
-            virtual ~thread()
+            ~thread()
             {
                 stop();
                 clear();
