@@ -26,6 +26,9 @@ namespace threadpool
         public:
             void post(const task_t& f)
             {
+                if (stopped_())
+                    return;
+                    
                 std::unique_lock< std::mutex > lock(tasks_mutex_);
                 
                 tasks_.emplace_back(std::move(std::async([f, this]
