@@ -1,5 +1,4 @@
 #include "thread.hpp"
-#include "async.hpp"
 
 #include <chrono>
 #include <ctime>
@@ -7,15 +6,16 @@
 #include <atomic>
 #include <random>
 #include <string>
-#include <future>
 
-threadpool::pool::async        tp__;
-threadpool::pool::thread       ap__;
+threadpool::pool::thread        ap__;
 
 std::mutex                      mutex__;
-volatile std::atomic_bool       exit_b__;
-volatile std::atomic_bool       exit_t__;
+std::atomic_bool                exit_b__(true);
+std::atomic_bool                exit_t__(true);
 std::atomic_uint64_t            count__;
+
+std::unique_ptr< std::thread >  radom_s;
+std::unique_ptr< std::thread >  radom_b;
 
 void sleep(const unsigned long& milliseconds)
 {
@@ -48,29 +48,26 @@ void dispatch()
 
 void random_test_broadcast()
 {
-    static int send_count = 0;
-
     while (!exit_b__)
     {
-        tp__.post(std::bind(&test, ++count__));
+        ap__.post(std::bind(&test, ++count__));
         sleep(1);
     }
-
 }
 
 void random_test_start_stop()
 {
     while (!exit_t__)
     {
-        tp__.start();
+        ap__.start();
         sleep(random(100,200));
-        tp__.stop();
+        ap__.stop();
     }
 }
 
 void random_test_wait()
 {
-    tp__.wait();
+    ap__.wait();
 }
 
 int main(int, char**)
@@ -85,76 +82,63 @@ int main(int, char**)
         {
             std::cout << "Stop pool" << std::endl;
 
-            std::async([]
-            {
-                tp__.stop();
-            });
+            ap__.stop();
         }
 
         else if (cmd == "s")
         {
             std::cout << "Start pool" << std::endl;
 
-            std::async([]
-            {
-                tp__.start();
-            });
-
+            ap__.start();
         }
         else if (cmd == "p")
         {
             std::cout << "Post 1" << std::endl;
 
-            std::async([]
-            {
-                tp__.post([]{ std::cout << "Post 1 task" << std::endl;  });
-            });
-
+            ap__.post([]{ std::cout << "Post 1 task" << std::endl;  });
         }
         else if (cmd == "t")
         {
+            if (!exit_t__)
+                continue;
             std::cout << "Test start/stop" << std::endl;
             exit_t__ = false;
-            std::async([]{random_test_start_stop(); });
+            radom_s = std::make_unique< std::thread >([] {random_test_start_stop(); });
         }
-
         else if (cmd == "w")
         {
+            if (!exit_b__)
+                continue;
             std::cout << "Start post thread" << std::endl;
             exit_b__ = false;
-            std::async([]
-            {
-                random_test_broadcast();
-            });
+            radom_b = std::make_unique< std::thread >([] {random_test_broadcast(); });
         }
         else if (cmd == "b")
         {
             std::cout << "Dispatch msg" << std::endl;
 
-            std::async([]
-            {
-                for (auto i = 0; i < 10; ++i)
-                    tp__.dispatch(&dispatch);
-            });
+            for (auto i = 0; i < 10; ++i)
+                ap__.dispatch(&dispatch);
         }
         else if (cmd == "a")
         {
-            std::async([]
-            {
-                random_test_wait();
-            });
+            random_test_wait();
         }
         else if (cmd == "qb")
         {
             std::cout << "Stop broadcast" << std::endl;
 
             exit_b__ = true;
+
+            radom_b->join();
         }
         else if (cmd == "qt")
         {
             std::cout << "Stop stat/stop" << std::endl;
 
             exit_t__ = true;
+
+            radom_s->join();
         }
     } while (true);
 
